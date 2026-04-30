@@ -134,7 +134,7 @@ Pick your agent. One command. Done.
 | Agent | Install |
 |-------|---------|
 | **Claude Code** | `claude plugin marketplace add JuliusBrussee/caveman && claude plugin install caveman@caveman` |
-| **Codex** | Clone repo → `/plugins` → Search "Caveman" → Install |
+| **Codex** | Clone repo → Open Codex in repo → `/plugins` → Search "Caveman" → Install |
 | **Gemini CLI** | `gemini extensions install https://github.com/JuliusBrussee/caveman` |
 | **Cursor** | `npx skills add JuliusBrussee/caveman -a cursor` |
 | **Windsurf** | `npx skills add JuliusBrussee/caveman -a windsurf` |
@@ -188,6 +188,37 @@ irm https://raw.githubusercontent.com/JuliusBrussee/caveman/main/hooks/install.p
 ```
 
 Or from a local clone: `bash hooks/install.sh` / `powershell -File hooks\install.ps1`
+
+**Windows manual fallback** — if automated install fails (#249, #199, #72), set up plugin-skill activation by hand. Does **not** install standalone hooks/statusline.
+
+```powershell
+$ClaudeDir = if ($env:CLAUDE_CONFIG_DIR) { $env:CLAUDE_CONFIG_DIR } else { Join-Path $HOME ".claude" }
+$PluginSkillDir = Join-Path $ClaudeDir ".agents\plugins\caveman\skills\caveman"
+$MarketplaceDir = Join-Path $ClaudeDir ".agents\plugins"
+$MarketplaceFile = Join-Path $MarketplaceDir "marketplace.json"
+
+# Copy SKILL.md into plugin path
+New-Item -ItemType Directory -Path $PluginSkillDir -Force | Out-Null
+Copy-Item ".\skills\caveman\SKILL.md" "$PluginSkillDir\SKILL.md" -Force
+
+# Create or update marketplace.json with caveman entry
+New-Item -ItemType Directory -Path $MarketplaceDir -Force | Out-Null
+if (Test-Path $MarketplaceFile) {
+  $marketplace = Get-Content $MarketplaceFile -Raw | ConvertFrom-Json
+} else {
+  $marketplace = [pscustomobject]@{}
+}
+if (-not ($marketplace.PSObject.Properties.Name -contains "plugins")) {
+  $marketplace | Add-Member -NotePropertyName plugins -NotePropertyValue ([pscustomobject]@{})
+}
+$plugins = [ordered]@{}
+foreach ($p in $marketplace.plugins.PSObject.Properties) { $plugins[$p.Name] = $p.Value }
+$plugins["caveman"] = [ordered]@{ name = "caveman"; source = "JuliusBrussee/caveman"; version = "main" }
+$marketplace.plugins = [pscustomobject]$plugins
+$marketplace | ConvertTo-Json -Depth 10 | Set-Content -Path $MarketplaceFile -Encoding UTF8
+```
+
+Verify: `Test-Path "$PluginSkillDir\SKILL.md"` (should print `True`), then restart Claude Code and run `/caveman`.
 
 Uninstall: `bash hooks/uninstall.sh` or `powershell -File hooks\uninstall.ps1`
 
