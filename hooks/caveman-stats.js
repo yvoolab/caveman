@@ -10,7 +10,7 @@
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
-const { readFlag, appendFlag, readHistory } = require('./caveman-config');
+const { readFlag, appendFlag, readHistory, safeWriteFlag } = require('./caveman-config');
 
 // Mean per-task savings from benchmarks/results/*.json (avg_savings: 65 across
 // 10 tasks, sonnet-4-20250514). Only 'full' has measured data; lite / ultra /
@@ -321,13 +321,11 @@ function main() {
 
     // Statusline suffix: tiny pre-rendered string the shell statusline can
     // cat without parsing JSONL. Updated on every /caveman-stats run.
-    try {
-      const agg = aggregateHistory(historyPath, null);
-      const suffix = agg.estSavedTokens > 0 ? `⛏ ${humanizeTokens(agg.estSavedTokens)}` : '';
-      fs.writeFileSync(path.join(claudeDir, '.caveman-statusline-suffix'), suffix, { mode: 0o600 });
-    } catch (e) {
-      // Best-effort; the badge still renders without it.
-    }
+    // Routed through safeWriteFlag — the suffix path is predictable and
+    // user-owned, same symlink-clobber surface as the .caveman-active flag.
+    const agg = aggregateHistory(historyPath, null);
+    const suffix = agg.estSavedTokens > 0 ? `⛏ ${humanizeTokens(agg.estSavedTokens)}` : '';
+    safeWriteFlag(path.join(claudeDir, '.caveman-statusline-suffix'), suffix);
   }
 
   if (share) {

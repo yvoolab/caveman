@@ -38,10 +38,12 @@ if ([string]::IsNullOrEmpty($Mode) -or $Mode -eq "full") {
     [Console]::Write("${Esc}[38;5;172m[CAVEMAN:$Suffix]${Esc}[0m")
 }
 
-# Optional savings suffix: opt-in via CAVEMAN_STATUSLINE_SAVINGS=1.
+# Savings suffix: on by default. Opt out via CAVEMAN_STATUSLINE_SAVINGS=0.
 # Reads a pre-rendered string written by caveman-stats.js. Refuses reparse
-# points and strips control bytes (matches statusline.sh hardening).
-if ($env:CAVEMAN_STATUSLINE_SAVINGS -eq "1") {
+# points and strips control bytes (matches statusline.sh hardening). Until
+# /caveman-stats has run at least once, the suffix file is absent and nothing
+# is rendered — safe default for fresh installs.
+if ($env:CAVEMAN_STATUSLINE_SAVINGS -ne "0") {
     $SavingsFile = Join-Path $ClaudeDir ".caveman-statusline-suffix"
     if (Test-Path $SavingsFile) {
         try {
