@@ -35,6 +35,10 @@ Caveman makes AI coding agents respond in compressed caveman-style prose — cut
 | `skills/caveman-review/SKILL.md` | Caveman code review behavior. Fully independent skill. |
 | `skills/caveman-help/SKILL.md` | Quick-reference card. One-shot display, not a persistent mode. |
 | `caveman-compress/SKILL.md` | Compress sub-skill behavior. |
+| `skills/cavecrew/SKILL.md` | Cavecrew decision guide — when to delegate to caveman subagents vs vanilla. Edit only here. |
+| `agents/cavecrew-investigator.md` | Read-only locator subagent. Output contract: `path:line — symbol — note`. |
+| `agents/cavecrew-builder.md` | Surgical 1-2 file editor subagent. Refuses 3+ file scope. |
+| `agents/cavecrew-reviewer.md` | Diff/file reviewer subagent. One-line findings with severity emoji. |
 
 ### Auto-generated / auto-synced — do not edit directly
 
@@ -51,6 +55,8 @@ Overwritten by CI on push to main when sources change. Edits here lost.
 | `.github/copilot-instructions.md` | `rules/caveman-activate.md` |
 | `.cursor/rules/caveman.mdc` | `rules/caveman-activate.md` + Cursor frontmatter |
 | `.windsurf/rules/caveman.md` | `rules/caveman-activate.md` + Windsurf frontmatter |
+| `plugins/caveman/skills/cavecrew/SKILL.md` | `skills/cavecrew/SKILL.md` |
+| `plugins/caveman/agents/cavecrew-*.md` | `agents/cavecrew-*.md` |
 
 ---
 

@@ -21,16 +21,17 @@ INIT_SCRIPT_URL="$RAW_BASE/tools/caveman-init.js"
 MCP_SHRINK_PKG="caveman-shrink"
 
 # ── Flags + state (no associative arrays — bash 3.2 safe) ──────────────────
-# WITH_HOOKS / WITH_MCP_SHRINK default to "auto": flipped on by default after
-# argument parsing unless --minimal is set or the user already passed an
-# explicit override. WITH_INIT stays opt-in because it writes per-repo rule
-# files into $PWD — too surprising to do for a bare curl|bash.
+# WITH_HOOKS defaults to "auto" → ON unless --minimal is set. WITH_MCP_SHRINK
+# stays opt-in until the caveman-shrink npm package is published; auto-on
+# would register an `npx -y caveman-shrink` config that 404s on first use.
+# WITH_INIT also opt-in because it writes per-repo rule files into $PWD —
+# too surprising for a bare curl|bash.
 DRY=0
 FORCE=0
 SKIP_SKILLS=0
 WITH_HOOKS=auto
 WITH_INIT=0
-WITH_MCP_SHRINK=auto
+WITH_MCP_SHRINK=0
 ALL=0
 MINIMAL=0
 LIST_ONLY=0
@@ -77,7 +78,8 @@ FLAGS
                         Cursor/Windsurf/Cline/Copilot/AGENTS.md. Off by default.
   --with-mcp-shrink     Claude Code: register the caveman-shrink MCP middleware
                         proxy (or print the JSON snippet for manual setup).
-                        On by default — pass --minimal to skip.
+                        Off by default until the proxy is published to npm —
+                        opt in once `npx caveman-shrink` resolves.
   --list                Print the full provider matrix and exit.
   --no-color            Disable ANSI color codes (auto-disabled on non-TTY).
   -h, --help            Show this help and exit.
@@ -190,7 +192,7 @@ if [ "$MINIMAL" = 1 ]; then
   WITH_INIT=0
 fi
 [ "$WITH_HOOKS" = "auto" ] && WITH_HOOKS=1
-[ "$WITH_MCP_SHRINK" = "auto" ] && WITH_MCP_SHRINK=1
+# WITH_MCP_SHRINK has no "auto" value — opt-in until the proxy is on npm.
 
 # ── Color helpers ──────────────────────────────────────────────────────────
 if [ "$NO_COLOR" = 1 ]; then
@@ -365,8 +367,9 @@ if [ "$LIST_ONLY" = 1 ]; then
   note "  Detection probes per agent live in install.sh PROVIDER_DETECT."
   note "  Soft entries detect via config-dir presence only (no CLI on PATH)."
   echo
-  note "  Defaults: --with-hooks ON, --with-mcp-shrink ON, --with-init OFF."
+  note "  Defaults: --with-hooks ON, --with-mcp-shrink OFF, --with-init OFF."
   note "  --all turns all three on, --minimal turns all three off."
+  note "  --with-mcp-shrink will resolve once 'caveman-shrink' is published to npm."
   exit 0
 fi
 
@@ -413,16 +416,22 @@ jetbrains_plugin_present() {
 }
 
 # Parse a PROVIDER_DETECT spec like "command:foo||dir:$HOME/x" and return 0
-# if any clause matches.
+# if any clause matches. Splits on '||' via bash parameter expansion — earlier
+# revisions used `awk -v RS='||'` which silently fails on macOS BSD awk
+# ("illegal primary in regular expression"), making every compound spec a
+# no-op and causing the installer to detect zero of the 28 IDE/CLI agents.
 detect_match() {
   local spec="$1"
-  local IFS='|'
-  # Split on '||' by replacing the doubled pipe with a single delim safely.
-  local clauses
-  clauses=$(printf '%s' "$spec" | awk -v RS='||' '{print}' 2>/dev/null) || true
-  if [ -z "$clauses" ]; then clauses="$spec"; fi
+  local rest="$spec"
   local clause
-  while IFS= read -r clause; do
+  while [ -n "$rest" ]; do
+    if [ "${rest#*||}" != "$rest" ]; then
+      clause="${rest%%||*}"
+      rest="${rest#*||}"
+    else
+      clause="$rest"
+      rest=""
+    fi
     [ -z "$clause" ] && continue
     case "$clause" in
       command:*)         has "${clause#command:}" && return 0 ;;
@@ -433,9 +442,7 @@ detect_match() {
       jetbrains-config)  jetbrains_present && return 0 ;;
       jetbrains-plugin:*) jetbrains_plugin_present "${clause#jetbrains-plugin:}" && return 0 ;;
     esac
-  done <<EOF
-$clauses
-EOF
+  done
   return 1
 }
 
@@ -499,10 +506,17 @@ install_claude() {
     fi
   fi
 
-  # --with-mcp-shrink: register the proxy (or print the snippet).
+  # --with-mcp-shrink: register the proxy (or print the snippet). Until the
+  # npm package is published, warn the user that registration will register a
+  # config that 404s the first time Claude tries to spawn it.
   if [ "$WITH_MCP_SHRINK" = 1 ]; then
     say "  → wiring caveman-shrink MCP proxy (--with-mcp-shrink)"
-    if has claude && claude mcp --help >/dev/null 2>&1; then
+    if ! npm view "$MCP_SHRINK_PKG" >/dev/null 2>&1; then
+      warn "    'npm view $MCP_SHRINK_PKG' returned no metadata — package not on npm yet."
+      note "    Skipping registration. Re-run with --with-mcp-shrink once the package is published,"
+      note "    or copy the snippet below into your MCP config and point it at a local clone."
+      record_skipped "caveman-shrink" "package not on npm yet"
+    elif has claude && claude mcp --help >/dev/null 2>&1; then
       # Newer Claude Code CLIs expose `claude mcp add`. Wrap stdio: proxy
       # spawns the upstream as a child. Without an upstream the proxy is a
       # no-op, so we register the proxy itself with a placeholder upstream

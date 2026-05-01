@@ -369,12 +369,42 @@ test('statusline.sh appends savings when CAVEMAN_STATUSLINE_SAVINGS=1', (tmp) =>
   assert.match(out, /⛏ 2\.8k/);
 });
 
-test('statusline.sh omits savings when env var is not set', (tmp) => {
+test('statusline.sh renders savings by default when env var is unset', (tmp) => {
   if (process.platform === 'win32') return;
   const claudeDir = path.join(tmp, '.claude');
   fs.mkdirSync(claudeDir, { recursive: true });
   fs.writeFileSync(path.join(claudeDir, '.caveman-active'), 'full');
   fs.writeFileSync(path.join(claudeDir, '.caveman-statusline-suffix'), '⛏ 2.8k');
+  const env = { ...process.env, CLAUDE_CONFIG_DIR: claudeDir };
+  delete env.CAVEMAN_STATUSLINE_SAVINGS;
+  const out = execFileSync('bash', [path.join(ROOT, 'hooks', 'caveman-statusline.sh')], {
+    encoding: 'utf8', env,
+  });
+  assert.match(out, /\[CAVEMAN\]/);
+  assert.match(out, /⛏ 2\.8k/);
+});
+
+test('statusline.sh omits savings when CAVEMAN_STATUSLINE_SAVINGS=0', (tmp) => {
+  if (process.platform === 'win32') return;
+  const claudeDir = path.join(tmp, '.claude');
+  fs.mkdirSync(claudeDir, { recursive: true });
+  fs.writeFileSync(path.join(claudeDir, '.caveman-active'), 'full');
+  fs.writeFileSync(path.join(claudeDir, '.caveman-statusline-suffix'), '⛏ 2.8k');
+  const out = execFileSync('bash', [path.join(ROOT, 'hooks', 'caveman-statusline.sh')], {
+    encoding: 'utf8',
+    env: { ...process.env, CLAUDE_CONFIG_DIR: claudeDir, CAVEMAN_STATUSLINE_SAVINGS: '0' },
+  });
+  assert.match(out, /\[CAVEMAN\]/);
+  assert.doesNotMatch(out, /⛏/);
+});
+
+test('statusline.sh omits savings when suffix file is missing (fresh install)', (tmp) => {
+  if (process.platform === 'win32') return;
+  const claudeDir = path.join(tmp, '.claude');
+  fs.mkdirSync(claudeDir, { recursive: true });
+  fs.writeFileSync(path.join(claudeDir, '.caveman-active'), 'full');
+  // No suffix file written — simulates the moment after install but before
+  // /caveman-stats has run. Default-on must NOT fabricate a number.
   const env = { ...process.env, CLAUDE_CONFIG_DIR: claudeDir };
   delete env.CAVEMAN_STATUSLINE_SAVINGS;
   const out = execFileSync('bash', [path.join(ROOT, 'hooks', 'caveman-statusline.sh')], {
